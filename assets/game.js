@@ -31,7 +31,7 @@ function finish(correct) {
 function advance() {
   $('answer').value = '';
   if (stage === 5) { finish(false); return; }
-  stage++; viewedStage = stage; render(); $('status').textContent = ''; $('answer').focus();
+  stage++; viewedStage = stage; render(); $('status').textContent = '';
 }
 $('answer-form').addEventListener('submit', event => {
   event.preventDefault(); if (!playing) return;
@@ -99,6 +99,7 @@ function loadDailyQuestion() {
 render();
 installSongAutocomplete(window.CHUNITHM_SONGS || []);
 loadDailyQuestion();
+
 
 
 
