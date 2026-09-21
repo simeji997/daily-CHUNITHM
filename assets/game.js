@@ -3,6 +3,7 @@
 const $ = id => document.getElementById(id);
 let activeImages = [], acceptedAnswers = [], displayAnswer = '', stage = 0, viewedStage = 0, playing = false;
 let shareHistory = [], resultRevealed = false;
+let playHistory = [], progressDate = '';
 const normalize = text => text.normalize('NFKC').toLowerCase().replace(/[\s\u3000]/g, '').replace(/[ァ-ヶ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
 function render() {
   const canShare = resultRevealed;
@@ -20,18 +21,19 @@ function render() {
   $('image-position').textContent = activeImages.length ? viewedStage === 6 ? '正解画像' : `${viewedStage + 1} / ${playing ? stage + 1 : activeImages.length}枚` : '';
   $('pass').textContent = stage === 5 ? '答えを見る' : '次のヒント';
 }
-function restart() { resultRevealed = false; shareHistory = []; $('share-status').textContent = ''; stage = 0; viewedStage = 0; playing = true; $('history').replaceChildren(); $('answer').value = ''; $('status').className = 'status'; $('status').textContent = ''; render(); $('answer').focus(); }
-function addHistory(text, correct, passed = false) { shareHistory.push(correct ? 'O' : passed ? 'ー' : 'X'); const li = document.createElement('li'); li.textContent = `${stage + 1}. ${text} ${correct ? '✓' : passed ? '—' : '×'}`; if (correct) li.className = 'correct'; else if (!passed) li.className = 'incorrect'; $('history').append(li); }
+function restart() { playHistory = []; resultRevealed = false; shareHistory = []; $('share-status').textContent = ''; stage = 0; viewedStage = 0; playing = true; $('history').replaceChildren(); $('answer').value = ''; $('status').className = 'status'; $('status').textContent = ''; render(); $('answer').focus(); }
+function addHistory(text, correct, passed = false) { playHistory.push({ text, correct, passed }); shareHistory.push(correct ? 'O' : passed ? 'ー' : 'X'); const li = document.createElement('li'); li.textContent = `${stage + 1}. ${text} ${correct ? '✓' : passed ? '—' : '×'}`; if (correct) li.className = 'correct'; else if (!passed) li.className = 'incorrect'; $('history').append(li); }
 function finish(correct) {
   resultRevealed = true;
   const solvedAt = stage + 1; playing = false; stage = 5; viewedStage = activeImages.length - 1; render();
   $('status').className = correct ? 'status win' : 'status';
   $('status').textContent = correct ? `正解！ 答えは「${displayAnswer}」。${solvedAt}段階目で見抜きました。` : `答え　「${displayAnswer}」`;
+  saveProgress();
 }
 function advance() {
   $('answer').value = '';
   if (stage === 5) { finish(false); return; }
-  stage++; viewedStage = stage; render(); $('status').textContent = '';
+  stage++; viewedStage = stage; render(); $('status').textContent = ''; saveProgress();
 }
 $('answer-form').addEventListener('submit', event => {
   event.preventDefault(); if (!playing) return;
@@ -55,8 +57,39 @@ async function loadQuestion(question) {
     await Promise.all(images.map(src => { const img = new Image(); img.src = src; return img.decode(); }));
     $('question-label').textContent = typeof question.label === 'string' ? question.label.trim() : '';
     $('question-label').hidden = !$('question-label').textContent;
-    activeImages = images; acceptedAnswers = question.answers.map(normalize); displayAnswer = question.answers[0]; restart();
+    activeImages = images; acceptedAnswers = question.answers.map(normalize); displayAnswer = question.answers[0]; progressDate = question.label; restart(); restoreProgress(); saveProgress();
   } catch { $('status').textContent = '問題を読み込めませんでした。時間をおいて再度お試しください。'; }
+}
+function progressKey() { return `daily-chunithm:progress:v1:${progressDate}`; }
+function storageWarning() {
+  $('storage-status').textContent = 'このブラウザでは進捗を保存できません。再読み込みすると最初からになります。';
+}
+function saveProgress() {
+  if (!progressDate || !activeImages.length) return;
+  try {
+    localStorage.setItem(progressKey(), JSON.stringify({ version: 1, date: progressDate, step: stage, completed: resultRevealed, history: playHistory }));
+    $('storage-status').textContent = '';
+  } catch { storageWarning(); }
+}
+function restoreProgress() {
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(progressKey())); }
+  catch { storageWarning(); return; }
+  if (!saved) return;
+  // Validate before applying any state. Never inject saved answer text as HTML.
+  if (saved.version !== 1 || saved.date !== progressDate || !Array.isArray(saved.history) || saved.history.length > 6 || typeof saved.completed !== 'boolean') return;
+  const entries = saved.history;
+  if (!entries.every(e => e && typeof e.text === 'string' && e.text.length <= 80 && typeof e.correct === 'boolean' && typeof e.passed === 'boolean' && !(e.correct && e.passed))) return;
+  const winIndex = entries.findIndex(e => e.correct);
+  if (winIndex !== -1 && winIndex !== entries.length - 1) return;
+  const completed = winIndex !== -1 || entries.length === 6;
+  if (saved.completed !== completed || saved.step !== (completed ? 5 : entries.length)) return;
+  for (let i = 0; i < entries.length; i++) {
+    stage = i;
+    addHistory(entries[i].text, entries[i].correct, entries[i].passed);
+  }
+  if (completed) finish(winIndex !== -1);
+  else { stage = entries.length; viewedStage = stage; render(); }
 }
 function buildShareText() {
   const results = Array.from({ length: 6 }, (_, i) => shareHistory[i] || 'ー').join(' ');
@@ -99,6 +132,7 @@ function loadDailyQuestion() {
 render();
 installSongAutocomplete(window.CHUNITHM_SONGS || []);
 loadDailyQuestion();
+
 
 
 
