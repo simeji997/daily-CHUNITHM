@@ -2,8 +2,14 @@
 'use strict';
 const $ = id => document.getElementById(id);
 let activeImages = [], acceptedAnswers = [], displayAnswer = '', stage = 0, viewedStage = 0, playing = false;
+let shareHistory = [], resultRevealed = false;
 const normalize = text => text.normalize('NFKC').toLowerCase().replace(/[\s\u3000]/g, '').replace(/[ァ-ヶ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
 function render() {
+  const canShare = resultRevealed;
+  $('share-result').hidden = !canShare;
+  $('share-result').disabled = !canShare;
+  $('share-status').hidden = !canShare;
+  $('pass').hidden = resultRevealed;
   $('stage-label').textContent = `STEP ${String(stage + 1).padStart(2, '0')} / 06`;
   $('progress').replaceChildren();
   for (let i = 0; i < 6; i++) { const dot = document.createElement('span'); dot.className = `step${i === viewedStage ? ' current' : i <= stage ? ' seen' : ''}`; $('progress').append(dot); }
@@ -14,9 +20,10 @@ function render() {
   $('image-position').textContent = activeImages.length ? viewedStage === 6 ? '正解画像' : `${viewedStage + 1} / ${playing ? stage + 1 : activeImages.length}枚` : '';
   $('pass').textContent = stage === 5 ? '答えを見る' : '次のヒント';
 }
-function restart() { stage = 0; viewedStage = 0; playing = true; $('history').replaceChildren(); $('answer').value = ''; $('status').className = 'status'; $('status').textContent = ''; render(); $('answer').focus(); }
-function addHistory(text, correct, passed = false) { const li = document.createElement('li'); li.textContent = `${stage + 1}. ${text} ${correct ? '✓' : passed ? '—' : '×'}`; if (correct) li.className = 'correct'; else if (!passed) li.className = 'incorrect'; $('history').append(li); }
+function restart() { resultRevealed = false; shareHistory = []; $('share-status').textContent = ''; stage = 0; viewedStage = 0; playing = true; $('history').replaceChildren(); $('answer').value = ''; $('status').className = 'status'; $('status').textContent = ''; render(); $('answer').focus(); }
+function addHistory(text, correct, passed = false) { shareHistory.push(correct ? 'O' : passed ? 'ー' : 'X'); const li = document.createElement('li'); li.textContent = `${stage + 1}. ${text} ${correct ? '✓' : passed ? '—' : '×'}`; if (correct) li.className = 'correct'; else if (!passed) li.className = 'incorrect'; $('history').append(li); }
 function finish(correct) {
+  resultRevealed = true;
   const solvedAt = stage + 1; playing = false; stage = 5; viewedStage = activeImages.length - 1; render();
   $('status').className = correct ? 'status win' : 'status';
   $('status').textContent = correct ? `正解！ 答えは「${displayAnswer}」。${solvedAt}段階目で見抜きました。` : `答え　「${displayAnswer}」`;
@@ -51,6 +58,20 @@ async function loadQuestion(question) {
     activeImages = images; acceptedAnswers = question.answers.map(normalize); displayAnswer = question.answers[0]; restart();
   } catch { $('status').textContent = '問題を読み込めませんでした。時間をおいて再度お試しください。'; }
 }
+function buildShareText() {
+  const results = Array.from({ length: 6 }, (_, i) => shareHistory[i] || 'ー').join(' ');
+  return ['Daily CHUNITHM', $('question-label').textContent, shareHistory.includes('O') ? '⭕正解！' : '❌不正解...', results, 'Daily-CHUNITHM.com'].join('\n');
+}
+async function shareResult() {
+  if (!resultRevealed) return;
+  try {
+    await navigator.clipboard.writeText(buildShareText());
+    $('share-status').textContent = '結果をコピーしました。';
+  } catch {
+    $('share-status').textContent = 'コピーできませんでした。ブラウザのクリップボード権限を確認してください。';
+  }
+}
+$('share-result').addEventListener('click', shareResult);
 function tokyoDate(now = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);
   const value = type => parts.find(part => part.type === type).value;
@@ -78,4 +99,8 @@ function loadDailyQuestion() {
 render();
 installSongAutocomplete(window.CHUNITHM_SONGS || []);
 loadDailyQuestion();
+
+
+
+
 
