@@ -95,14 +95,12 @@ function buildShareText() {
   const results = Array.from({ length: 6 }, (_, i) => shareHistory[i] || 'ー').join(' ');
   return ['Daily CHUNITHM', $('question-label').textContent, shareHistory.includes('O') ? '⭕正解！' : '❌不正解...', results, 'Daily-CHUNITHM.com'].join('\n');
 }
-async function shareResult() {
+function shareResult() {
   if (!resultRevealed) return;
-  try {
-    await navigator.clipboard.writeText(buildShareText());
-    $('share-status').textContent = '結果をコピーしました。';
-  } catch {
-    $('share-status').textContent = 'コピーできませんでした。ブラウザのクリップボード権限を確認してください。';
-  }
+  const link = document.createElement('a');
+  link.href = 'https://x.com/intent/tweet?text=' + encodeURIComponent(buildShareText());
+  link.target = '_blank'; link.rel = 'noopener noreferrer';
+  document.body.append(link); link.click(); link.remove();
 }
 $('share-result').addEventListener('click', shareResult);
 function tokyoDate(now = new Date()) {
@@ -132,6 +130,7 @@ function loadDailyQuestion() {
 render();
 installSongAutocomplete(window.CHUNITHM_SONGS || []);
 loadDailyQuestion();
+
 
 
 
