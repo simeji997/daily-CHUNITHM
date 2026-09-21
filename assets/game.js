@@ -92,7 +92,7 @@ function restoreProgress() {
   else { stage = entries.length; viewedStage = stage; render(); }
 }
 function buildShareText() {
-  const results = Array.from({ length: 6 }, (_, i) => shareHistory[i] || 'ー').join(' ');
+  const results = Array.from({ length: 6 }, (_, i) => `${'１２３４５６'[i]}．${shareHistory[i] || 'ー'}`).join('　');
   return ['Daily CHUNITHM', $('question-label').textContent, shareHistory.includes('O') ? '⭕正解！' : '❌不正解...', results, 'Daily-CHUNITHM.com'].join('\n');
 }
 function shareResult() {
@@ -130,6 +130,7 @@ function loadDailyQuestion() {
 render();
 installSongAutocomplete(window.CHUNITHM_SONGS || []);
 loadDailyQuestion();
+
 
 
 
