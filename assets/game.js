@@ -23,12 +23,14 @@ function render() {
 }
 function restart() { playHistory = []; resultRevealed = false; shareHistory = []; $('share-status').textContent = ''; stage = 0; viewedStage = 0; playing = true; $('history').replaceChildren(); $('answer').value = ''; $('status').className = 'status'; $('status').textContent = ''; render(); $('answer').focus(); }
 function addHistory(text, correct, passed = false) { playHistory.push({ text, correct, passed }); shareHistory.push(correct ? 'O' : passed ? 'ー' : 'X'); const li = document.createElement('li'); li.textContent = `${stage + 1}. ${text} ${correct ? '✓' : passed ? '—' : '×'}`; if (correct) li.className = 'correct'; else if (!passed) li.className = 'incorrect'; $('history').append(li); }
-function finish(correct) {
+function finish(correct, restoring = false) {
+  if (resultRevealed) return;
   resultRevealed = true;
   const solvedAt = stage + 1; playing = false; stage = 5; viewedStage = activeImages.length - 1; render();
   $('status').className = correct ? 'status win' : 'status';
   $('status').textContent = correct ? `正解！ 答えは「${displayAnswer}」。${solvedAt}段階目で見抜きました。` : `答え　「${displayAnswer}」`;
   saveProgress();
+  if (!restoring) trackGameEvent(correct ? 'game_clear' : 'game_failed', correct ? solvedAt : undefined);
 }
 function advance() {
   $('answer').value = '';
@@ -39,9 +41,9 @@ $('answer-form').addEventListener('submit', event => {
   event.preventDefault(); if (!playing) return;
   const answer = $('answer').value.trim(); if (!normalize(answer)) { $('status').textContent = '答えを入力してください。'; return; }
   const correct = acceptedAnswers.includes(normalize(answer)); addHistory(answer, correct);
-  if (correct) finish(true); else advance();
+  if (correct) finish(true); else { trackGameEvent('answer_wrong', stage + 1); advance(); }
 });
-$('pass').addEventListener('click', () => { if (!playing) return; addHistory('パス', false, true); advance(); });
+$('pass').addEventListener('click', () => { if (!playing) return; addHistory('パス', false, true); trackGameEvent('pass', stage + 1); advance(); });
 $('previous-image').addEventListener('click', () => { if (activeImages.length && viewedStage > 0) { viewedStage--; render(); } });
 $('next-image').addEventListener('click', () => { if (activeImages.length && viewedStage < (playing ? stage : activeImages.length - 1)) { viewedStage++; render(); } });
 async function loadQuestion(question) {
@@ -57,8 +59,15 @@ async function loadQuestion(question) {
     await Promise.all(images.map(src => { const img = new Image(); img.src = src; return img.decode(); }));
     $('question-label').textContent = typeof question.label === 'string' ? question.label.trim() : '';
     $('question-label').hidden = !$('question-label').textContent;
-    activeImages = images; acceptedAnswers = question.answers.map(normalize); displayAnswer = question.answers[0]; progressDate = question.label; restart(); restoreProgress(); saveProgress();
+    activeImages = images; acceptedAnswers = question.answers.map(normalize); displayAnswer = question.answers[0]; progressDate = question.label; restart(); const restored = restoreProgress(); saveProgress(); if (!restored) trackGameEvent('game_start');
   } catch { $('status').textContent = '問題を読み込めませんでした。時間をおいて再度お試しください。'; }
+}
+// Explicit allowlist: never pass answers, titles, history or image data to GA4.
+function trackGameEvent(name, step) {
+  if (!['game_start', 'answer_wrong', 'pass', 'game_clear', 'game_failed'].includes(name)) return;
+  const params = { quiz_date: progressDate };
+  if (['answer_wrong', 'pass', 'game_clear'].includes(name)) params.step = step;
+  try { if (typeof window.gtag === 'function') window.gtag('event', name, params); } catch { /* Analytics must never interrupt play. */ }
 }
 function progressKey() { return `daily-chunithm:progress:v1:${progressDate}`; }
 function storageWarning() {
@@ -88,8 +97,9 @@ function restoreProgress() {
     stage = i;
     addHistory(entries[i].text, entries[i].correct, entries[i].passed);
   }
-  if (completed) finish(winIndex !== -1);
+  if (completed) finish(winIndex !== -1, true);
   else { stage = entries.length; viewedStage = stage; render(); }
+  return true;
 }
 function buildShareText() {
   const results = Array.from({ length: 6 }, (_, i) => `${'１２３４５６'[i]}．${shareHistory[i] || 'ー'}`).join('　');
@@ -130,6 +140,7 @@ function loadDailyQuestion() {
 render();
 installSongAutocomplete(window.CHUNITHM_SONGS || []);
 loadDailyQuestion();
+
 
 
 
