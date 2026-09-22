@@ -4,8 +4,22 @@ const $ = id => document.getElementById(id);
 let activeImages = [], acceptedAnswers = [], displayAnswer = '', stage = 0, viewedStage = 0, playing = false;
 let shareHistory = [], resultRevealed = false;
 let playHistory = [], progressDate = '';
+let quizCreator = null;
 const normalize = text => text.normalize('NFKC').toLowerCase().replace(/[\s\u3000]/g, '').replace(/[ァ-ヶ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
+function renderCreator() {
+  const container = $('quiz-creator');
+  container.replaceChildren();
+  const name = typeof quizCreator?.name === 'string' ? quizCreator.name.trim().slice(0, 80) : '';
+  container.hidden = !resultRevealed || !name;
+  if (container.hidden) return;
+  const id = typeof quizCreator?.twitter === 'string' ? quizCreator.twitter.trim().replace(/^@/, '') : '';
+  const content = document.createElement(/^[A-Za-z0-9_]{1,15}$/.test(id) ? 'a' : 'span');
+  content.textContent = `問題作成者：${name}`;
+  if (/^[A-Za-z0-9_]{1,15}$/.test(id)) { content.href = 'https://x.com/' + id; content.target = '_blank'; content.rel = 'noopener noreferrer'; content.setAttribute('style', 'color:var(--green)'); }
+  container.append(content);
+}
 function render() {
+  renderCreator();
   const canShare = resultRevealed;
   $('share-result').hidden = !canShare;
   $('share-result').disabled = !canShare;
@@ -59,6 +73,7 @@ async function loadQuestion(question) {
     await Promise.all(images.map(src => { const img = new Image(); img.src = src; return img.decode(); }));
     $('question-label').textContent = typeof question.label === 'string' ? question.label.trim() : '';
     $('question-label').hidden = !$('question-label').textContent;
+    quizCreator = question.creator || null;
     activeImages = images; acceptedAnswers = question.answers.map(normalize); displayAnswer = question.answers[0]; progressDate = question.label; restart(); const restored = restoreProgress(); saveProgress(); if (!restored) trackGameEvent('game_start');
   } catch { $('status').textContent = '問題を読み込めませんでした。時間をおいて再度お試しください。'; }
 }
@@ -140,6 +155,7 @@ function loadDailyQuestion() {
 render();
 installSongAutocomplete(window.CHUNITHM_SONGS || []);
 loadDailyQuestion();
+
 
 
 

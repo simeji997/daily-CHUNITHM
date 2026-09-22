@@ -8,6 +8,10 @@ body{min-height:100vh;background:radial-gradient(ellipse at 50% 0,#202334 0,tran
 
 <label class="field">02 / 正解<span id="correct-answer-container" class="autocomplete-field"><input id="correct-answer" placeholder="サジェストから正式曲名を選択" maxlength="200" autocomplete="off"></span></label>
 <p>正解はサジェストの正式曲名との一致が必要です。</p>
+<label class="field">作成者名（任意）<input id="creator-name" maxlength="80" placeholder="表示する名前"></label>
+<label class="field">Twitter（X）ID（任意）<input id="creator-twitter" maxlength="16" placeholder="@CHUNITHM_SIMEJI"></label>
+<p>未記載の場合は作成者を表示しません。名前のみの場合はリンクなしで表示します。IDは先頭の @ 付き・なしのどちらでも入力できます。</p>
+<p id="creator-status" role="status"></p>
 <p id="song-data-status" role="status"></p>
 <p id="setup-status" class="setup-status" role="status" aria-live="polite">画像を6枚選び、正解を入力してください（0 / 6）。</p>
 <button id="export" class="primary" disabled>問題データをダウンロード ↓</button>
@@ -25,10 +29,13 @@ $('song-data-status').textContent = songDataReady ? `曲名サジェスト：${w
 const normalize = text => text.normalize('NFKC').toLowerCase().replace(/[\s\u3000]/g, '').replace(/[ァ-ヶ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
 const answers = () => [$('correct-answer').value.trim()].filter(s => normalize(s));
 const validAnswer = () => songDataReady && window.CHUNITHM_SONGS.some(song => song.title === $('correct-answer').value.trim());
+const twitterId = () => $('creator-twitter').value.trim().replace(/^@/, '');
+const validCreator = () => !twitterId() || /^[A-Za-z0-9_]{1,15}$/.test(twitterId());
 function refresh() {
+  $('creator-status').textContent = validCreator() ? '' : 'IDは英数字・アンダースコアの15文字以内で入力してください。';
   const count = selected.slice(0, 6).filter(Boolean).length;
   $('setup-status').textContent = `画像 ${count} / 6枚 · ${validAnswer() ? '正解を設定済み' : 'サジェストの正式曲名を設定してください'}`;
-  $('export').disabled = count !== 6 || !validAnswer() || !songDataReady || answerImageLoading;
+  $('export').disabled = count !== 6 || !validAnswer() || !songDataReady || answerImageLoading || !validCreator();
 }
 for (let i = 0; i < 7; i++) {
   const label = document.createElement('label'); label.className = 'upload';
@@ -58,11 +65,12 @@ for (let i = 0; i < 7; i++) {
   });
 }
 
+$('creator-twitter').addEventListener('input', refresh);
 $('correct-answer').addEventListener('input', refresh);
 if (songDataReady) installSongAutocomplete(window.CHUNITHM_SONGS, { inputId: 'correct-answer', containerId: 'correct-answer-container', onSelect: refresh });
 $('export').addEventListener('click', () => {
-  if (selected.slice(0, 6).some(s => !s) || !validAnswer() || !songDataReady || answerImageLoading) return;
-  const question = JSON.stringify({ label: '', images: selected.slice(0, 6), answerImage: selected[6], answers: answers() }).replace(/</g, '\u003c').replace(/>/g, '\u003e').replace(/&/g, '\u0026');
+  if (selected.slice(0, 6).some(s => !s) || !validAnswer() || !songDataReady || answerImageLoading || !validCreator()) return;
+  const question = JSON.stringify({ label: '', images: selected.slice(0, 6), answerImage: selected[6], answers: answers(), creator: { name: $('creator-name').value.trim(), twitter: twitterId() } }).replace(/</g, '\u003c').replace(/>/g, '\u003e').replace(/&/g, '\u0026');
   const output = 'window.DAILY_CHUNITHM_QUIZ = ' + question + ';\n';
   const url = URL.createObjectURL(new Blob([output], { type: 'text/javascript;charset=utf-8' }));
   const link = document.createElement('a'); link.href = url; link.download = answers()[0].replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/[. ]+$/g, '').slice(0, 120) + '.js'; document.body.append(link); link.click(); link.remove();
@@ -70,6 +78,7 @@ $('export').addEventListener('click', () => {
   $('setup-status').textContent = '問題データを書き出しました。schedule.htmlで読み込み、日付を設定してください。';
 });
 </script></body></html>
+
 
 
 
