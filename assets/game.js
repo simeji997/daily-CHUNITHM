@@ -3,7 +3,7 @@
 const $ = id => document.getElementById(id);
 let activeImages = [], acceptedAnswers = [], displayAnswer = '', stage = 0, viewedStage = 0, playing = false;
 let shareHistory = [], resultRevealed = false;
-let playHistory = [], progressDate = '';
+let playHistory = [], progressDate = '', progressRevision = 1;
 let quizCreator = null;
 const normalize = text => text.normalize('NFKC').toLowerCase().replace(/[\s\u3000]/g, '').replace(/[ァ-ヶ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
 function renderCreator() {
@@ -63,6 +63,7 @@ $('next-image').addEventListener('click', () => { if (activeImages.length && vie
 async function loadQuestion(question) {
   try {
     if (!question) return;
+    if (question.revision !== undefined && (!Number.isSafeInteger(question.revision) || question.revision < 1)) throw new Error('Invalid revision');
     if (!Array.isArray(question.images) || question.images.length !== 6 || !question.images.every(src => typeof src === 'string' && /^data:image\/(png|jpeg|webp|gif);base64,/.test(src)) || !Array.isArray(question.answers) || !question.answers.length || !question.answers.every(a => typeof a === 'string' && normalize(a))) throw new Error('Invalid question');
     $('status').textContent = '画像を読み込んでいます…';
     const images = [...question.images];
@@ -74,7 +75,7 @@ async function loadQuestion(question) {
     $('question-label').textContent = typeof question.label === 'string' ? question.label.trim() : '';
     $('question-label').hidden = !$('question-label').textContent;
     quizCreator = question.creator || null;
-    activeImages = images; acceptedAnswers = question.answers.map(normalize); displayAnswer = question.answers[0]; progressDate = question.label; restart(); const restored = restoreProgress(); saveProgress(); if (!restored) trackGameEvent('game_start');
+    activeImages = images; acceptedAnswers = question.answers.map(normalize); displayAnswer = question.answers[0]; progressDate = question.label; progressRevision = question.revision ?? 1; restart(); const restored = restoreProgress(); saveProgress(); if (!restored) trackGameEvent('game_start');
   } catch { $('status').textContent = '問題を読み込めませんでした。時間をおいて再度お試しください。'; }
 }
 // Explicit allowlist: never pass answers, titles, history or image data to GA4.
@@ -84,24 +85,28 @@ function trackGameEvent(name, step) {
   if (['answer_wrong', 'pass', 'game_clear'].includes(name)) params.step = step;
   try { if (typeof window.gtag === 'function') window.gtag('event', name, params); } catch { /* Analytics must never interrupt play. */ }
 }
-function progressKey() { return `daily-chunithm:progress:v1:${progressDate}`; }
+function progressKey() { return `daily-chunithm:progress:v1:${progressDate}:revision:${progressRevision}`; }
 function storageWarning() {
   $('storage-status').textContent = 'このブラウザでは進捗を保存できません。再読み込みすると最初からになります。';
 }
 function saveProgress() {
   if (!progressDate || !activeImages.length) return;
   try {
-    localStorage.setItem(progressKey(), JSON.stringify({ version: 1, date: progressDate, step: stage, completed: resultRevealed, history: playHistory }));
+    localStorage.setItem(progressKey(), JSON.stringify({ version: 1, date: progressDate, revision: progressRevision, step: stage, completed: resultRevealed, history: playHistory }));
     $('storage-status').textContent = '';
   } catch { storageWarning(); }
 }
 function restoreProgress() {
   let saved;
-  try { saved = JSON.parse(localStorage.getItem(progressKey())); }
+  try {
+    let raw = localStorage.getItem(progressKey());
+    if (raw === null && progressRevision === 1) raw = localStorage.getItem(`daily-chunithm:progress:v1:${progressDate}`);
+    saved = JSON.parse(raw);
+  }
   catch { storageWarning(); return; }
   if (!saved) return;
   // Validate before applying any state. Never inject saved answer text as HTML.
-  if (saved.version !== 1 || saved.date !== progressDate || !Array.isArray(saved.history) || saved.history.length > 6 || typeof saved.completed !== 'boolean') return;
+  if (saved.version !== 1 || saved.date !== progressDate || (saved.revision ?? 1) !== progressRevision || !Array.isArray(saved.history) || saved.history.length > 6 || typeof saved.completed !== 'boolean') return;
   const entries = saved.history;
   if (!entries.every(e => e && typeof e.text === 'string' && e.text.length <= 80 && typeof e.correct === 'boolean' && typeof e.passed === 'boolean' && !(e.correct && e.passed))) return;
   const winIndex = entries.findIndex(e => e.correct);
@@ -143,7 +148,7 @@ function loadDailyQuestion() {
   $('status').textContent = '本日の問題を読み込んでいます…';
   window.DAILY_CHUNITHM_QUIZ = undefined;
   const script = document.createElement('script');
-  script.src = `quizzes/${date}.js`;
+  script.src = `quizzes/${date}.js?t=${Date.now()}`;
   script.onload = () => {
     const question = window.DAILY_CHUNITHM_QUIZ;
     if (!question || question.label !== date) { showUnavailable(); return; }
@@ -155,6 +160,8 @@ function loadDailyQuestion() {
 render();
 installSongAutocomplete(window.CHUNITHM_SONGS || []);
 loadDailyQuestion();
+
+
 
 
 

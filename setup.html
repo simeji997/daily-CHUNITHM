@@ -70,7 +70,7 @@ $('correct-answer').addEventListener('input', refresh);
 if (songDataReady) installSongAutocomplete(window.CHUNITHM_SONGS, { inputId: 'correct-answer', containerId: 'correct-answer-container', onSelect: refresh });
 $('export').addEventListener('click', () => {
   if (selected.slice(0, 6).some(s => !s) || !validAnswer() || !songDataReady || answerImageLoading || !validCreator()) return;
-  const question = JSON.stringify({ label: '', images: selected.slice(0, 6), answerImage: selected[6], answers: answers(), creator: { name: $('creator-name').value.trim(), twitter: twitterId() } }).replace(/</g, '\u003c').replace(/>/g, '\u003e').replace(/&/g, '\u0026');
+  const question = JSON.stringify({ label: '', revision: 1, images: selected.slice(0, 6), answerImage: selected[6], answers: answers(), creator: { name: $('creator-name').value.trim(), twitter: twitterId() } }).replace(/</g, '\u003c').replace(/>/g, '\u003e').replace(/&/g, '\u0026');
   const output = 'window.DAILY_CHUNITHM_QUIZ = ' + question + ';\n';
   const url = URL.createObjectURL(new Blob([output], { type: 'text/javascript;charset=utf-8' }));
   const link = document.createElement('a'); link.href = url; link.download = answers()[0].replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/[. ]+$/g, '').slice(0, 120) + '.js'; document.body.append(link); link.click(); link.remove();
@@ -78,6 +78,7 @@ $('export').addEventListener('click', () => {
   $('setup-status').textContent = '問題データを書き出しました。schedule.htmlで読み込み、日付を設定してください。';
 });
 </script></body></html>
+
 
 
 
