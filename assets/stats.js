@@ -25,9 +25,9 @@
     } finally { clearTimeout(timeout); }
   }
   function renderRank() {
-    const valid = session.correct && Number.isSafeInteger(session.rank) && session.rank > 0;
+    const valid = session.correct && Number.isInteger(session.step) && session.step >= 1 && session.step <= 6;
     $('clear-rank').hidden = !valid;
-    $('clear-rank').textContent = valid ? `${session.step}枚目で正解　${session.rank}人目です！` : '';
+    $('clear-rank').textContent = valid ? `${session.step}枚目で正解` : '';
   }
   async function stats() {
     if (!session || document.hidden || pendingGet) return;
@@ -85,5 +85,6 @@
   window.addEventListener('pageshow', () => { if (session) poll(); });
   window.DailyStats = { show, reset };
 })();
+
 
 
