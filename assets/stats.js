@@ -27,6 +27,7 @@
   function renderRank() {
     const valid = session.correct && Number.isInteger(session.step) && session.step >= 1 && session.step <= 6;
     $('clear-rank').hidden = !valid;
+    $('first-strike').hidden = !(session.correct && session.step === 1 && session.firstStrike === true);
     $('clear-rank').textContent = valid ? `${session.step}枚目で正解` : '';
   }
   async function stats() {
@@ -64,7 +65,9 @@
       if (token !== generation) return;
       if (current.correct) {
         if (data.ok !== true || data.date !== current.date || !Number.isSafeInteger(data.rank) || data.rank < 1) throw Error('Invalid rank');
-        session.rank = data.rank; current.onRank(data.rank); renderRank();
+        session.rank = data.rank;
+        session.firstStrike = current.step === 1 && Array.isArray(data.counts) && data.counts[0] === 1;
+        current.onRank(data.rank, session.firstStrike); renderRank();
       }
       // Refresh using GET, not the possibly older aggregate returned by POST.
       if (pendingGet) { pendingGet.abort(); pendingGet = null; }
@@ -85,6 +88,7 @@
   window.addEventListener('pageshow', () => { if (session) poll(); });
   window.DailyStats = { show, reset };
 })();
+
 
 
 

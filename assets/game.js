@@ -4,7 +4,7 @@ const $ = id => document.getElementById(id);
 let activeImages = [], acceptedAnswers = [], displayAnswer = '', stage = 0, viewedStage = 0, playing = false;
 let shareHistory = [], resultRevealed = false;
 let playHistory = [], progressDate = '', progressRevision = 1;
-let quizCreator = null, clearRank = null;
+let quizCreator = null, clearRank = null, firstStrike = false;
 const normalize = text => text.normalize('NFKC').toLowerCase().replace(/[\s\u3000]/g, '').replace(/[ァ-ヶ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
 function renderCreator() {
   const container = $('quiz-creator');
@@ -35,7 +35,7 @@ function render() {
   $('image-position').textContent = activeImages.length ? viewedStage === 6 ? '正解画像' : `${viewedStage + 1} / ${playing ? stage + 1 : activeImages.length}枚` : '';
   $('pass').textContent = stage === 5 ? '答えを見る' : '次のヒント';
 }
-function restart() { window.DailyStats?.reset(); clearRank = null; playHistory = []; resultRevealed = false; shareHistory = []; $('share-status').textContent = ''; stage = 0; viewedStage = 0; playing = true; $('history').replaceChildren(); $('answer').value = ''; $('status').className = 'status'; $('status').textContent = ''; render(); $('answer').focus(); }
+function restart() { window.DailyStats?.reset(); clearRank = null; firstStrike = false; playHistory = []; resultRevealed = false; shareHistory = []; $('share-status').textContent = ''; stage = 0; viewedStage = 0; playing = true; $('history').replaceChildren(); $('answer').value = ''; $('status').className = 'status'; $('status').textContent = ''; render(); $('answer').focus(); }
 function addHistory(text, correct, passed = false) { playHistory.push({ text, correct, passed }); shareHistory.push(correct ? 'O' : passed ? 'ー' : 'X'); const li = document.createElement('li'); li.textContent = `${stage + 1}. ${text} ${correct ? '✓' : passed ? '—' : '×'}`; if (correct) li.className = 'correct'; else if (!passed) li.className = 'incorrect'; $('history').append(li); }
 function finish(correct, restoring = false) {
   if (resultRevealed) return;
@@ -45,7 +45,7 @@ function finish(correct, restoring = false) {
   $('status').textContent = correct ? `正解！ 答えは「${displayAnswer}」。${solvedAt}段階目で見抜きました。` : `答え　「${displayAnswer}」`;
   saveProgress();
   if (!restoring) trackGameEvent(correct ? 'game_clear' : 'game_failed', correct ? solvedAt : undefined);
-  window.DailyStats?.show({ date: progressDate, step: solvedAt, correct, restoring, rank: clearRank, today: tokyoDate, onRank: rank => { clearRank = rank; saveProgress(); } });
+  window.DailyStats?.show({ date: progressDate, step: solvedAt, correct, restoring, rank: clearRank, firstStrike, today: tokyoDate, onRank: (rank, awarded = false) => { clearRank = rank; firstStrike = awarded; saveProgress(); } });
 }
 function advance() {
   $('answer').value = '';
@@ -93,7 +93,7 @@ function storageWarning() {
 function saveProgress() {
   if (!progressDate || !activeImages.length) return;
   try {
-    localStorage.setItem(progressKey(), JSON.stringify({ version: 1, date: progressDate, revision: progressRevision, step: stage, completed: resultRevealed, clearRank, history: playHistory }));
+    localStorage.setItem(progressKey(), JSON.stringify({ version: 1, date: progressDate, revision: progressRevision, step: stage, completed: resultRevealed, clearRank, firstStrike, history: playHistory }));
     $('storage-status').textContent = '';
   } catch { storageWarning(); }
 }
@@ -115,6 +115,7 @@ function restoreProgress() {
   const completed = winIndex !== -1 || entries.length === 6;
   if (saved.completed !== completed || saved.step !== (completed ? 5 : entries.length)) return;
   clearRank = completed && winIndex !== -1 && Number.isSafeInteger(saved.clearRank) && saved.clearRank > 0 ? saved.clearRank : null;
+  firstStrike = completed && winIndex === 0 && saved.firstStrike === true;
   for (let i = 0; i < entries.length; i++) {
     stage = i;
     addHistory(entries[i].text, entries[i].correct, entries[i].passed);
@@ -162,6 +163,7 @@ function loadDailyQuestion() {
 render();
 installSongAutocomplete(window.CHUNITHM_SONGS || []);
 loadDailyQuestion();
+
 
 
 
