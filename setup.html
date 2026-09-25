@@ -29,7 +29,7 @@ body{min-height:100vh;background:radial-gradient(ellipse at 50% 0,#202334 0,tran
 </div>
 <script id="setup-maintenance-config">
 // This setting controls setup.html only.
-const MAINTENANCE_MODE = true;
+const MAINTENANCE_MODE = false;
 const setupMaintenance = MAINTENANCE_MODE && new URLSearchParams(window.location?.search || '').get('maintenance') !== 'off';
 document.getElementById('setup-maintenance').hidden = !setupMaintenance;
 document.getElementById('setup-screen').hidden = setupMaintenance;
